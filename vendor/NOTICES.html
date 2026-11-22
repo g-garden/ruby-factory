@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>使っているソフトウェア | def pack(belt)</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0816; --panel: #151030; --line: #2c2457; --ink: #f2eeff; --dim: #a59ec6; --cyan: #5ee7ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  p { margin: 4px 0; color: var(--dim); }
+  a { color: var(--cyan); }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--dim); }
+  pre { margin: 8px 0 0; padding: 12px; max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+        font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>使っているソフトウェア</h1>
+  <p>このゲームに同梱しているソフトウェアと、そのライセンスです。このタブを閉じるとゲームに戻れます。</p>
+
+  <h2>ruby.wasm</h2>
+  <p>ブラウザで Ruby を動かすのに使っています（<code>@ruby/4.0-wasm-wasi</code> 2.10.1 の <code>ruby.wasm</code> と、<code>@ruby/wasm-wasi</code> 2.10.1 の <code>browser.umd.js</code>）。MIT ライセンスです。</p>
+  <details><summary>RUBY_WASM_LICENSE</summary><pre data-src="RUBY_WASM_LICENSE"><a href="RUBY_WASM_LICENSE">RUBY_WASM_LICENSE</a></pre></details>
+
+  <h2>CRuby と、ruby.wasm に入っているライブラリ</h2>
+  <p>ruby.wasm のバイナリには CRuby、LibYAML、zlib、wasi-libc、OpenSSL、wasi-vfs などが入っています。ruby.wasm が配っている NOTICE をそのまま置いています。</p>
+  <details><summary>RUBY_WASM_NOTICE</summary><pre data-src="RUBY_WASM_NOTICE"><a href="RUBY_WASM_NOTICE">RUBY_WASM_NOTICE</a></pre></details>
+
+  <h2>Prism</h2>
+  <p>CRuby のパーサーで、ruby.wasm のバイナリに入っています。上の NOTICE には載っていないので、ここに置いています。MIT ライセンスです。</p>
+  <details><summary>PRISM_LICENSE</summary><pre data-src="PRISM_LICENSE"><a href="PRISM_LICENSE">PRISM_LICENSE</a></pre></details>
+
+  <h2>Apache License 2.0</h2>
+  <p>OpenSSL などが使っているライセンスです。上の NOTICE には URL しか載っていないので、全文を置いています。</p>
+  <details><summary>APACHE_LICENSE-2.0</summary><pre data-src="APACHE_LICENSE-2.0"><a href="APACHE_LICENSE-2.0">APACHE_LICENSE-2.0</a></pre></details>
+
+  <h2>browser_wasi_shim</h2>
+  <p><code>browser.umd.js</code> に入っています（<code>@bjorn3/browser_wasi_shim</code>）。MIT か Apache-2.0 のどちらかを選べます。</p>
+  <details><summary>BROWSER_WASI_SHIM_LICENSE</summary><pre data-src="BROWSER_WASI_SHIM_LICENSE"><a href="BROWSER_WASI_SHIM_LICENSE">BROWSER_WASI_SHIM_LICENSE</a></pre></details>
+</main>
+<script src="./notices.js"></script>
+</body>
+</html>

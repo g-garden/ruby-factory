@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 自分のオリジンのファイルだけを読む。wasm-unsafe-eval は ruby.wasm のコンパイルに要る。frame-ancestors は meta では効かないので書かない -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0816">
+<meta name="description" content="原石がベルトを流れ続ける放置系の工場ゲーム。工場で動くのは、自分で書く def pack(belt) だけ。ブラウザの ruby.wasm で遊べます。">
+<title>def pack(belt) | Ruby で磨く宝石工場</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="def pack(belt) | Ruby で磨く宝石工場">
+<meta property="og:description" content="原石がベルトを流れ続ける放置系の工場ゲーム。工場で動くのは、自分で書く def pack(belt) だけ。ブラウザの ruby.wasm で遊べます。">
+<meta property="og:url" content="https://g-garden.github.io/ruby-factory/">
+<meta property="og:image" content="https://g-garden.github.io/ruby-factory/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="def pack(belt) のゲーム画面。鉱山からベルトで運んだ原石を工場で箱に詰め、トラックで出荷している">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 30 12 16 30 2 12z' fill='%23e0115f'/%3E%3Cpath d='M2 12h28L16 30z' fill='%23a00c44'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app" class="app" data-tab="code">
+  <header id="hud" class="hud"></header>
+  <section class="factory" aria-label="工場">
+    <canvas id="factory" tabindex="0" aria-label="鉱山・ベルト・工場・出荷ドック。鉱山をクリックすると原石を掘れます。Enter キーでも掘れます"></canvas>
+  </section>
+  <nav class="tabs" role="tablist" aria-label="パネルの切り替え">
+    <button class="tab" type="button" role="tab" id="tab-code" aria-controls="panel-code" data-tab="code">コード</button>
+    <button class="tab" type="button" role="tab" id="tab-shop" aria-controls="shop" data-tab="shop">ショップ</button>
+    <button class="tab" type="button" role="tab" id="tab-research" aria-controls="gemfile" data-tab="research">研究</button>
+  </nav>
+  <section id="panel-code" class="work panel" data-panel="code">
+    <div id="editor" class="editor"></div>
+    <div id="console" class="console"></div>
+  </section>
+  <aside class="side">
+    <div id="shop" class="shop panel" data-panel="shop"></div>
+    <div id="gemfile" class="gemfile panel" data-panel="research"></div>
+  </aside>
+</div>
+<noscript><p class="noscript">このゲームは JavaScript と WebAssembly で動きます。</p></noscript>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

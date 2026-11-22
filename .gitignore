@@ -1,0 +1,20 @@
+# 依存
+node_modules/
+
+# 設計時の試作。リポジトリには含めない。docs/design は仕様書の .md だけ入れる
+.spike/
+docs/design/*
+!docs/design/*.md
+
+# 検証ツールの出力（dev/acceptance.mjs・dev/playthrough.mjs のスクリーンショットなど）
+dev/shots/
+playthrough-out/
+test-results/
+playwright-report/
+*.log
+
+# 手元の設定
+.env*
+.DS_Store
+.vscode/
+.idea/

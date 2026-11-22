@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory demo</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0816; --panel: #161029; --ink: #f2eeff; --dim: #a59ec6; --accent: #e0115f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
+  #stage { margin: 0 auto; width: 100%; }
+  #stage.w375 { width: 375px; }
+  #stage.w768 { width: 768px; }
+  canvas { display: block; width: 100%; height: 280px; border-radius: 10px; background: #0b0816; touch-action: manipulation; }
+  #stage.w375 canvas { height: 180px; border-radius: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; align-items: center; }
+  .row b { color: var(--dim); font-weight: 600; margin-right: 4px; min-width: 64px; }
+  button { background: var(--panel); color: var(--ink); border: 1px solid #332a5c; border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  button.on { border-color: var(--accent); background: #2a0f22; }
+  #stats { color: var(--dim); font: 12px ui-monospace, Menlo, monospace; }
+  /* 375px の Canvas を幅いっぱいに置くとき、余白で横スクロールが出ないようにする */
+  @media (max-width: 420px) { main { padding-left: 0; padding-right: 0; } .row { padding: 0 10px; } }
+</style>
+</head>
+<body>
+<main>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="row" id="scenarios"><b>状態</b></div>
+  <div class="row" id="widths"><b>幅</b></div>
+  <div class="row" id="fx"><b>演出</b></div>
+  <div class="row" id="bd"><b>裏口</b></div>
+  <div class="row" id="snd"><b>音</b></div>
+  <div class="row"><b>計測</b><span id="stats"></span></div>
+  <div class="row"><b>イベント</b><span id="events" style="color:var(--dim)"></span></div>
+</main>
+<script type="module">
+import { FactoryView } from "../src/factory.js";
+import { sfx } from "../src/audio.js";
+
+const qs = new URLSearchParams(location.search);
+const stage = document.getElementById("stage");
+const canvas = document.getElementById("cv");
+const eventsEl = document.getElementById("events");
+
+let seed = 7;
+const rand = () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const pickR = (a) => a[Math.floor(rand() * a.length)];
+
+// 偽の箱。本物の値付けは price.js がするので、見た目に必要な形だけ合わせる
+function fakeCrate(sc) {
+  if (sc.passthrough) {
+    return { raw: true, value: 1, cells: [{ color: pickR(sc.colors), carat: 1 + Math.floor(rand() * 9), flaw: rand() < 0.25, polished: false }], bonuses: [] };
+  }
+  const n = Math.max(1, Math.round(sc.box * (0.6 + rand() * 0.4)));
+  const mono = rand() < 0.6 ? pickR(sc.colors) : null;
+  const start = 1 + Math.floor(rand() * (10 - n));
+  const cells = Array.from({ length: n }, (_, i) => ({ color: mono || pickR(sc.colors), carat: sc.straight ? Math.min(9, start + i) : 1 + Math.floor(rand() * 9), flaw: false, polished: sc.polish && rand() < 0.3 }));
+  const perfect = sc.box >= 5 && rand() < 0.18;
+  const value = sc.unit * n * (0.4 + rand() * 1.4) * (perfect ? 2 : 1);
+  return { cells, value, bonuses: perfect ? [{ key: "straight", label: "STRAIGHT ×16" }] : [], perfect };
+}
+
+const S = (o) => ({
+  passthrough: false, refineryStatus: "running", refineryLabel: "", flow: 1, caps: {}, bottleneck: "mine",
+  backlog: 0, spill: 0, machines: [], colors: ["red"], beltTier: 0, vmProgress: null, incomePerSec: 1, money: 0,
+  box: 1, unit: 1, ...o,
+});
+const SCENARIOS = {
+  booting: S({ label: "VM 起動中", passthrough: true, refineryStatus: "booting", flow: 0.5, caps: { mine: 0.5, belt: 8, refinery: Infinity, dock: Infinity }, vmProgress: "anim", incomePerSec: 0.5 }),
+  passthrough: S({ label: "素通し", passthrough: true, refineryStatus: "passthrough", flow: 2.5, caps: { mine: 2.5, belt: 8, refinery: Infinity, dock: Infinity }, incomePerSec: 2.5 }),
+  dock: S({ label: "ドック詰まり", flow: 2, caps: { mine: 3.5, belt: 8, refinery: Infinity, dock: 2 }, bottleneck: "dock", backlog: 64, spill: 1.5, machines: ["map"], unit: 5, incomePerSec: 10 }),
+  belt: S({ label: "ベルト詰まり", flow: 8, caps: { mine: 14, belt: 8, refinery: 40, dock: 30 }, bottleneck: "belt", backlog: 200, spill: 6, machines: ["each_slice", "to_a"], box: 3, unit: 15, incomePerSec: 120 }),
+  refinery: S({ label: "CPU 詰まり", flow: 5.7, caps: { mine: 12, belt: 40, refinery: 5.7, dock: 40 }, bottleneck: "refinery", backlog: 90, spill: 0, machines: ["reject", "sort", "each_slice", "to_a"], box: 3, unit: 66, beltTier: 1, incomePerSec: 376 }),
+  band: S({ label: "帯（高流量）", flow: 4.2e5, caps: { mine: 6.1e5, belt: 625000, refinery: 4.2e5, dock: 9e5 }, bottleneck: "refinery", backlog: 200, spill: 1.9e5, colors: ["red", "blue", "green"], beltTier: 7, machines: ["map", "polish", "group_by", "values", "flat_map", "each_cons", "chunk_while", "each_slice", "to_a"], box: 7, unit: 44781, straight: true, polish: true, incomePerSec: 4.2e5 * 44781 }),
+  jam: S({ label: "例外", refineryStatus: "jam", refineryLabel: "NoMethodError", flow: 3.4, caps: { mine: 12, belt: 40, refinery: Infinity, dock: 40 }, bottleneck: "mine", machines: ["slect", "each_slice"], box: 3, unit: 15, beltTier: 1, incomePerSec: 51 }),
+  overheat: S({ label: "Overheat", refineryStatus: "overheat", refineryLabel: "Yield::Overheat", flow: 5.7, caps: { mine: 12, belt: 40, refinery: 5.7, dock: 40 }, bottleneck: "refinery", backlog: 120, machines: ["sum", "each_slice"], box: 3, unit: 33, beltTier: 1, incomePerSec: 188 }),
+  restarting: S({ label: "再起動中", refineryStatus: "restarting", flow: 5.7, caps: { mine: 12, belt: 40, refinery: 5.7, dock: 40 }, bottleneck: "refinery", backlog: 40, machines: ["each_slice"], box: 3, unit: 33, beltTier: 1, incomePerSec: 188 }),
+  inspect: S({ label: "検品エラー", refineryStatus: "inspect-error", refineryLabel: "複製 1000 箱", flow: 3.4, caps: { mine: 3.4, belt: 40, refinery: Infinity, dock: 40 }, bottleneck: "mine", machines: ["first"], box: 3, unit: 0.1, beltTier: 1, incomePerSec: 0 }),
+  idle: S({ label: "停止", refineryStatus: "idle", flow: 0, caps: { mine: 0, belt: 8, refinery: Infinity, dock: 2 }, bottleneck: "mine", machines: ["each_slice", "to_a"], box: 3, unit: 15, incomePerSec: 0 }),
+  sapphire: S({ label: "仕分け（2 色）", flow: 14, caps: { mine: 30, belt: 40, refinery: 14, dock: 70 }, bottleneck: "refinery", backlog: 30, colors: ["red", "blue"], beltTier: 1, machines: ["reject", "group_by", "values", "flat_map", "sort_by", "each_slice", "to_a"], box: 5, unit: 495, incomePerSec: 14 * 495 }),
+  final: S({ label: "無限ベルト（終盤）", flow: 2e7, caps: { mine: 2e7, belt: 4e7, refinery: 3.1e7, dock: 2.5e7 }, bottleneck: "mine", colors: ["red", "blue", "green"], beltTier: 8, machines: ["map", "polish", "group_by", "values", "flat_map", "each_cons", "chunk_while", "each_slice", "to_a"], box: 9, unit: 3.2e6, straight: true, polish: true, incomePerSec: 2e7 * 3.2e6 }),
+  finalRef: S({ label: "無限ベルト・CPU 詰まり", flow: 1.8e7, caps: { mine: 4e7, belt: 4e7, refinery: 1.8e7, dock: 5e7 }, bottleneck: "refinery", backlog: 200, spill: 2.2e7, colors: ["red", "blue", "green"], beltTier: 8, machines: ["reject", "sort_by", "each_slice", "to_a"], box: 9, unit: 3.2e6, straight: true, incomePerSec: 1.8e7 * 3.2e6 }),
+  finalDock: S({ label: "無限ベルト・出荷詰まり", flow: 1e6, caps: { mine: 2e6, belt: 4e7, refinery: 3e7, dock: 1e6 }, bottleneck: "dock", backlog: 200, spill: 1e6, colors: ["red", "blue", "green"], beltTier: 8, machines: ["map", "polish", "chunk_while", "to_a"], box: 9, unit: 3.2e6, polish: true, incomePerSec: 1e6 * 3.2e6 }),
+  finalLow: S({ label: "無限ベルト・低流量", flow: 6, caps: { mine: 6, belt: 4e7, refinery: 40, dock: 40 }, bottleneck: "mine", colors: ["red", "blue", "green"], beltTier: 8, machines: ["each_slice", "to_a"], box: 3, unit: 15, incomePerSec: 90 }),
+  flip: S({ label: "判子ちらつき確認", flow: 6, caps: { mine: 12, belt: 6.1, refinery: 6, dock: 40 }, bottleneck: "flip", backlog: 40, machines: ["each_slice"], box: 3, unit: 15, beltTier: 1, incomePerSec: 90 }),
+};
+
+let cur = SCENARIOS[qs.get("s")] ? qs.get("s") : "dock";
+const events = [];
+const logEvent = (s) => { events.unshift(s); events.length = Math.min(events.length, 5); eventsEl.textContent = events.join(" / "); };
+let shipCount = 0;
+
+const view = new FactoryView(canvas, {
+  onMineClick: () => { sfx.click(clickStreak++); logEvent("onMineClick"); },
+  onStageClick: (s) => logEvent("onStageClick(" + s + ")"),
+  onShip: () => { shipCount++; sfx.ship(Math.min(SCENARIOS[cur].flow, 60)); },
+});
+let clickStreak = 0;
+setInterval(() => { clickStreak = Math.max(0, clickStreak - 2); }, 600);
+
+// 裏口の状態（SPEC-rubyist 4.11 の ViewModel 追加分）。URL でも渡せる: ?lanes=2&night=1&ot=45&audited=1&sd=ラベル
+const bd = {
+  lanes: qs.get("lanes") === "2" ? 2 : 1,
+  nightShift: qs.get("night") === "1",
+  overtimeUntil: qs.get("ot") ? performance.now() + Number(qs.get("ot")) * 1000 : null,
+  audited: qs.get("audited") === "1",
+};
+
+let simT = 0;
+function vmFor(name) {
+  const sc = SCENARIOS[name];
+  const vm = { ...sc, ...bd, crateFeed: () => fakeCrate(sc) };
+  if (sc.vmProgress === "anim") {
+    const fixed = qs.get("p");
+    const p = fixed !== null ? Number(fixed) : (simT % 7) / 5.5;
+    vm.vmProgress = p >= 1 ? null : p;
+  }
+  if (sc.bottleneck === "flip") vm.bottleneck = Math.floor(simT / 0.6) % 2 ? "belt" : "refinery";
+  return vm;
+}
+
+function btn(parent, label, on, cls) {
+  const b = document.createElement("button");
+  b.textContent = label;
+  b.onclick = on;
+  if (cls) b.dataset.k = cls;
+  document.getElementById(parent).appendChild(b);
+  return b;
+}
+function mark(parent, k) {
+  document.querySelectorAll(`#${parent} button`).forEach((b) => b.classList.toggle("on", b.dataset.k === k));
+}
+for (const [k, sc] of Object.entries(SCENARIOS)) btn("scenarios", sc.label, () => setScenario(k), k);
+for (const w of ["375", "768", "full"]) btn("widths", w === "full" ? "可変" : w + "px", () => setWidth(w), w);
+btn("fx", "dig", () => view.dig());
+btn("fx", "celebrate", () => { view.celebrate("NEW RECORD  $3,961/ore"); sfx.record(); });
+btn("fx", "stamp PERFECT", () => { view.stamp("PERFECT", "dock"); sfx.perfect(); });
+btn("fx", "popMoney 12,345", () => view.popMoney(12345, "dock"));
+btn("fx", "popMoney 鉱山", () => view.popMoney(5, "mine"));
+const lanesBtn = btn("bd", "2 車線", () => { bd.lanes = bd.lanes === 2 ? 1 : 2; syncBd(); });
+const nightBtn = btn("bd", "夜間ライン（合鍵）", () => { bd.nightShift = !bd.nightShift; syncBd(); });
+btn("bd", "残業 45 秒", () => { bd.overtimeUntil = performance.now() + 45000; syncBd(); });
+btn("bd", "残業 3 秒", () => { bd.overtimeUntil = performance.now() + 3000; syncBd(); });
+const auditBtn = btn("bd", "AUDITED", () => {
+  bd.audited = !bd.audited;
+  if (bd.audited) { view.stamp("AUDITED", "refinery"); sfx.audited(); }
+  syncBd();
+});
+const SD_LABELS = ["クリスマス便  30 箱/バッチ", "クリスマス便  4 箱/バッチ", ""];
+let sdN = 0;
+btn("bd", "特注便", () => {
+  const label = SD_LABELS[sdN++ % SD_LABELS.length];
+  view.specialDelivery(label);
+  view.stamp("クリスマス便 ×4", "dock");
+  sfx.specialDelivery();
+  logEvent("specialDelivery(" + JSON.stringify(label) + ")");
+});
+function syncBd() {
+  lanesBtn.classList.toggle("on", bd.lanes === 2);
+  nightBtn.classList.toggle("on", bd.nightShift);
+  auditBtn.classList.toggle("on", bd.audited);
+}
+syncBd();
+if (qs.get("sd") !== null) view.specialDelivery(qs.get("sd"));
+btn("snd", "click", () => sfx.click(clickStreak++));
+btn("snd", "ship", () => sfx.ship(20));
+btn("snd", "deploy", () => sfx.deploy());
+btn("snd", "record", () => sfx.record());
+btn("snd", "bundle", () => sfx.bundle());
+btn("snd", "error", () => sfx.error());
+btn("snd", "perfect", () => sfx.perfect());
+btn("snd", "audited", () => sfx.audited());
+btn("snd", "specialDelivery", () => sfx.specialDelivery());
+const muteBtn = btn("snd", "ミュート", () => { sfx.setMuted(!sfx.muted); muteBtn.classList.toggle("on", sfx.muted); });
+
+function setScenario(k) { cur = k; mark("scenarios", k); }
+function setWidth(w) {
+  stage.className = w === "full" ? "" : "w" + w;
+  mark("widths", w);
+}
+setScenario(cur);
+setWidth(qs.get("w") || "full");
+
+let last = performance.now();
+let frames = 0;
+function loop(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  simT += dt;
+  view.frame(dt, vmFor(cur));
+  frames++;
+  if (frames % 15 === 0) {
+    const s = view.stats;
+    document.getElementById("stats").textContent = `sprites ${s.sprites} (max ${s.maxSprites}) / particles ${s.particles} / frame ${s.frameMs.toFixed(2)}ms / shipped ${shipCount}`;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+window.__demo = { view, setScenario, setWidth, scenarios: Object.keys(SCENARIOS), bd, syncBd, get shipCount() { return shipCount; } };
+</script>
+</body>
+</html>
